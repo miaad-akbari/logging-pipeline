@@ -146,10 +146,17 @@ jobs:
             # Test PostgreSQL
             docker exec postgres psql -U user -d mysqllogs -c "SELECT version();"
 
-            # Test consumer
-            docker exec consumer python -c "
+            # Test consumer (Python check)
+            docker exec consumer python - <<'PY'
 import psycopg2
-conn = psycopg2.connect(dbname='mysqllogs', user='user', password='password', host='postgres')
-print('PostgreSQL connection successful')
-"
+conn = psycopg2.connect(
+    dbname='mysqllogs',
+    user='user',
+    password='password',
+    host='postgres'
+)
+print("PostgreSQL connection successful")
+conn.close()
+PY
           EOF
+
