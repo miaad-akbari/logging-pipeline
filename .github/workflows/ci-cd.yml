@@ -19,12 +19,13 @@ jobs:
 
       - name: Set up Docker Compose
         run: docker compose -f docker-compose.yml up -d --build
-
+      
       - name: Make health check script executable
         run: chmod +x run-health-checks.sh
-
+      
       - name: Run health checks
         run: ./run-health-checks.sh
+
 
   # Build Docker image
   build:
@@ -87,10 +88,8 @@ jobs:
           docker save consumer:latest | ssh ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} -p ${{ secrets.SERVER_PORT }} "docker load"
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
             cd /opt/logging-pipeline
-            docker compose -f docker-compose.yml  down
-            docker compose -f docker-compose.yml  up -d
+            docker compose -f docker-compose.yml down
+            docker compose -f docker-compose.yml up -d --build
             chmod +x run-health-checks.sh
             ./run-health-checks.sh
-          EOF
-
           EOF
