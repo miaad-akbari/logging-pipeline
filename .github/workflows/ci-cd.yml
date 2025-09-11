@@ -132,22 +132,22 @@ jobs:
             docker-compose logs
           EOF
 
-      - name: Run smoke tests
-        run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
-            cd /opt/logging-pipeline
+    - name: Run smoke tests
+      run: |
+        ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
+          cd /opt/logging-pipeline
 
-            # Test MySQL
-            docker exec mysql mysql -uroot -prootpassword -e "SHOW DATABASES;"
+          # Test MySQL
+          docker exec mysql mysql -uroot -prootpassword -e "SHOW DATABASES;"
 
-            # Test Kafka
-            docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
+          # Test Kafka
+          docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
 
-            # Test PostgreSQL
-            docker exec postgres psql -U user -d mysqllogs -c "SELECT version();"
+          # Test PostgreSQL
+          docker exec postgres psql -U user -d mysqllogs -c "SELECT version();"
 
-            # Test consumer (Python check)
-            docker exec consumer python - <<'PY'
+          # Test consumer (Python check)
+          docker exec consumer python - <<'PY'
 import psycopg2
 conn = psycopg2.connect(
     dbname='mysqllogs',
@@ -158,5 +158,4 @@ conn = psycopg2.connect(
 print("PostgreSQL connection successful")
 conn.close()
 PY
-          EOF
-
+        EOF
