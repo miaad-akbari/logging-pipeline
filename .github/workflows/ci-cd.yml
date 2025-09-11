@@ -17,10 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
-
-      - name: Set up Docker Compose
-        uses: docker/setup-compose-action@v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Start services with Docker Compose
         run: docker compose -f docker-compose.yml up -d --build
@@ -47,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Build consumer image
         run: |
@@ -116,23 +113,11 @@ jobs:
           # Deploy on remote server
           ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
             cd /opt/logging-pipeline
-            # Install Docker Compose if not exists
-            if ! command -v docker-compose &> /dev/null; then
-              if command -v docker &> /dev/null; then
-                echo "Using docker compose (without dash)"
-                DOCKER_COMPOSE_CMD="docker compose"
-              else
-                echo "Installing Docker Compose..."
-                sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-                DOCKER_COMPOSE_CMD="docker-compose"
-              fi
-            else
-              DOCKER_COMPOSE_CMD="docker-compose"
-            fi
             
-            $DOCKER_COMPOSE_CMD -f docker-compose.yml down
-            $DOCKER_COMPOSE_CMD -f docker-compose.yml up -d --build
+            # استفاده از docker compose (بدون نیاز به نصب جداگانه)
+            docker compose -f docker-compose.yml down
+            docker compose -f docker-compose.yml up -d --build
+            
             sleep 60
             chmod +x run-health-checks.sh
             ./run-health-checks.sh
@@ -143,13 +128,6 @@ jobs:
           SSH_OPTS="-p ${{ secrets.SERVER_PORT }} -o StrictHostKeyChecking=no -o ConnectTimeout=30"
           ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
             cd /opt/logging-pipeline
-            # Detect docker compose command
-            if command -v docker-compose &> /dev/null; then
-              DOCKER_COMPOSE_CMD="docker-compose"
-            else
-              DOCKER_COMPOSE_CMD="docker compose"
-            fi
-            
-            $DOCKER_COMPOSE_CMD ps
-            $DOCKER_COMPOSE_CMD logs --tail=20
+            docker compose ps
+            docker compose logs --tail=20
           EOF
