@@ -122,7 +122,7 @@ services:
         ipv4_address: 172.20.0.15
 
   consumer:
-    ibuild: ./consumer
+    build: ./consumer
     container_name: consumer
     depends_on:
       kafka:
