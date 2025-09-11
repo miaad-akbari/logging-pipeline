@@ -1,0 +1,25 @@
+---
+- name:   Soft Cleanup - Remove only containers
+  hosts: logging_servers
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name:   Stop and remove containers 
+      command: docker-compose down -v
+      args:
+        chdir: /opt/logging-pipeline
+      ignore_errors: yes
+
+    - name:   Remove application directory
+      file:
+        path: /opt/logging-pipeline
+        state: absent
+
+    - name:   Soft cleanup completed
+      debug:
+        msg: |
+            SOFT CLEANUP COMPLETED!
+            Containers removed
+            Application directory deleted
+            Docker and Docker Compose remain installed

@@ -1,0 +1,5 @@
+[logging_servers]
+<IP OR HOSTNAME> ansible_user=<USERNAME> ansible_port=<YOUR-PORT>
+
+[logging_servers:vars]
+ansible_ssh_private_key_file=<KEY>

@@ -114,7 +114,6 @@ jobs:
           ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
             cd /opt/logging-pipeline
             
-            # استفاده از docker compose (بدون نیاز به نصب جداگانه)
             docker compose -f docker-compose.yml down
             docker compose -f docker-compose.yml up -d --build
             
