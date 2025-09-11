@@ -1,54 +1,93 @@
-version: '3.7'
+version: '3.8'
+# Static Network 
+networks:
+  logging-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+# Volumes
+volumes:
+  mysql-logs:
+  kafka-data:
+  postgres-data:
 
 services:
-  # Zookeeper is a requirement for Kafka
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.2.15
+    image: confluentinc/cp-zookeeper:7.5.3
     container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
 
-  # Kafka message broker
   kafka:
-    image: confluentinc/cp-kafka:7.2.15
+    image: confluentinc/cp-kafka:7.5.3
     container_name: kafka
-    depends_on:
-      - zookeeper
+    hostname: kafka
     ports:
       - "9092:9092"
+      - "29092:29092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_ZOOKEEPER_CONNECT: 172.20.0.10:2181  
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.20.0.11:29092,PLAINTEXT_HOST://localhost:9092  
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.11
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "29092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
 
-  # MySQL Database for generating logs
+  kafdrop:
+    image: obsidiandynamics/kafdrop:4.0.1
+    container_name: kafdrop
+    ports:
+      - "9000:9000"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERCONNECT: 172.20.0.11:29092  
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.12
+
   mysql:
     image: mysql:8.0
     container_name: mysql
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: testdb
+    command: --general-log=1 --general-log-file=/var/log/mysql/mysql-query.log
     volumes:
-      - ./config/mysql:/etc/mysql/conf.d
-      - mysql-logs:/var/log/mysql # Shared volume for logs
+      - mysql-logs:/var/log/mysql
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.13
 
-  rsyslog:
-    image: rsyslog/rsyslog:2025-04
-    container_name: rsyslog
-    depends_on:
-      - mysql
-      - kafka
-    volumes:
-      - ./config/rsyslog:/etc/rsyslog.d
-      - mysql-logs:/var/log/mysql:ro # Mount logs as read-only
-
-  
-  # PostgreSQL Database to store the logs
   postgres:
     image: postgres:14
     container_name: postgres
@@ -58,14 +97,46 @@ services:
       POSTGRES_DB: mysqllogs
     ports:
       - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.14
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mysqllogs"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
+  rsyslog:
+    build: ./config/rsyslog
+    container_name: rsyslog
+    depends_on:
+      - mysql
+      - kafka
+    volumes:
+      - ./config/rsyslog:/etc/rsyslog.d
+      - mysql-logs:/var/log/mysql:ro
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.15
 
   consumer:
-    image: consumer:0.1.0
+    image: consumer:0.1-3.0
     container_name: consumer
     depends_on:
-      - kafka
-      - postgres
-
-volumes:
-  mysql-logs: # Define the shared volume
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      logging-net:
+        ipv4_address: 172.20.0.16
+    environment:
+      KAFKA_TOPIC: mysql_logs
+      KAFKA_BROKER: 172.20.0.11:29092  
+      POSTGRES_DB: mysqllogs
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: 172.20.0.14  
+    restart: unless-stopped
