@@ -88,7 +88,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref_type == 'tag' 
+    if: github.ref_type == 'tag'
     environment: staging
     permissions:
       contents: read
@@ -114,15 +114,11 @@ jobs:
 
       - name: Deploy to server
         run: |
-
           REMOTE_DIR=/opt/logging-pipeline
-
           # Copy docker-compose and configs
           scp -r docker-compose.yml docker-compose.prod.yml config/ ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }}:${REMOTE_DIR}
-
           # Load Docker image on remote
           docker save consumer:latest | ssh ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} -p ${{ secrets.SERVER_PORT }} "docker load"
-
           # Start services
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
             cd /opt/logging-pipeline
@@ -132,22 +128,18 @@ jobs:
             docker-compose logs
           EOF
 
-    - name: Run smoke tests
-      run: |
-        ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
-          cd /opt/logging-pipeline
-
-          # Test MySQL
-          docker exec mysql mysql -uroot -prootpassword -e "SHOW DATABASES;"
-
-          # Test Kafka
-          docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
-
-          # Test PostgreSQL
-          docker exec postgres psql -U user -d mysqllogs -c "SELECT version();"
-
-          # Test consumer (Python check)
-          docker exec consumer python - <<'PY'
+      - name: Run smoke tests
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.STAGING_SERVER }} << 'EOF'
+            cd /opt/logging-pipeline
+            # Test MySQL
+            docker exec mysql mysql -uroot -prootpassword -e "SHOW DATABASES;"
+            # Test Kafka
+            docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
+            # Test PostgreSQL
+            docker exec postgres psql -U user -d mysqllogs -c "SELECT version();"
+            # Test consumer (Python check)
+            docker exec consumer python - <<'PY'
 import psycopg2
 conn = psycopg2.connect(
     dbname='mysqllogs',
@@ -158,4 +150,5 @@ conn = psycopg2.connect(
 print("PostgreSQL connection successful")
 conn.close()
 PY
-        EOF
+          EOF
+
