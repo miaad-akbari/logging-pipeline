@@ -1,5 +1,3 @@
-# consumer/Dockerfile
-
 # Using a slim python image for smaller size
 FROM python:3.9-slim
 
