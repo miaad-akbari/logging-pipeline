@@ -1,0 +1,60 @@
+---
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Clone repository (for config and consumer code)
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ app_dir }}"
+    version: main
+    force: yes
+
+- name: Create docker-compose.yml from template
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Build and start all services with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    build: "yes"
+    pull: "yes"
+    state: present
+  become: yes
+  become_user: "{{ ansible_user }}"  
+  register: compose_result
+
+- name: Show Docker Compose output
+  debug:
+    var: compose_result
+
+- name: Wait for services to become healthy
+  pause:
+    seconds: 45
+  when: compose_result.changed
+
+- name: Check running containers
+  command: docker ps
+  args:
+    chdir: "{{ app_dir }}"
+  register: container_status
+  changed_when: false
+
+- name: Show container status
+  debug:
+    msg: "{{ container_status.stdout_lines }}"
+
+- name: Check container logs
+  command: docker compose logs
+  args:
+    chdir: "{{ app_dir }}"
+  register: container_logs
+  changed_when: false
+
+- name: Display recent logs
+  debug:
+    msg: "{{ container_logs.stdout_lines }}"

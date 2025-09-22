@@ -1,0 +1,143 @@
+version: '3.8'
+
+networks:
+  logging-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "{{ network_subnet }}"
+          gateway: "{{ network_gateway }}"
+volumes:
+  mysql-logs:
+  kafka-data:
+  postgres-data:
+
+services:
+  zookeeper:
+    image: "{{ zookeeper_image }}"
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      logging-net:
+        ipv4_address: "{{ zookeeper_ip }}"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka:
+    image: "{{ kafka_image }}"
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "{{ zookeeper_ip }}:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://{{ kafka_ip }}:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      logging-net:
+        ipv4_address: "{{ kafka_ip }}"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "29092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  kafdrop:
+    image: "{{ kafdrop_image }}"
+    container_name: kafdrop
+    ports:
+      - "9000:9000"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERCONNECT: "{{ kafka_ip }}:29092"
+    networks:
+      logging-net:
+        ipv4_address: "{{ kafdrop_ip }}"
+
+  mysql:
+    image: "{{ mysql_image }}"
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: testdb
+    command: --general-log=1 --general-log-file=/var/log/mysql/mysql-query.log
+    volumes:
+      - mysql-logs:/var/log/mysql
+    networks:
+      logging-net:
+        ipv4_address: "{{ mysql_ip }}"
+
+  postgres:
+    image: "{{ postgres_image }}"
+    container_name: postgres
+    environment:
+      POSTGRES_USER: "{{ postgres_user }}"
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
+      POSTGRES_DB: "{{ postgres_db }}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      logging-net:
+        ipv4_address: "{{ postgres_ip }}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ postgres_user }} -d {{ postgres_db }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rsyslog:
+    build:
+      context: "{{ app_dir }}/config/rsyslog"
+    container_name: rsyslog
+    depends_on:
+      - mysql
+      - kafka
+    volumes:
+      - "{{ app_dir }}/config/rsyslog:/etc/rsyslog.d"
+      - mysql-logs:/var/log/mysql:ro
+    networks:
+      logging-net:
+        ipv4_address: "{{ rsyslog_ip }}"
+
+  consumer:
+    build:
+      context: "{{ app_dir }}/consumer"
+    container_name: consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      logging-net:
+        ipv4_address: "{{ consumer_ip }}"
+    environment:
+      KAFKA_TOPIC: mysql_logs
+      KAFKA_BROKER: "{{ kafka_ip }}:29092"
+      POSTGRES_DB: "{{ postgres_db }}"
+      POSTGRES_USER: "{{ postgres_user }}"
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
+      POSTGRES_HOST: "{{ postgres_ip }}"
+    restart: unless-stopped

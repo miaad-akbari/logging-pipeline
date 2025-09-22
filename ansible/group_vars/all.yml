@@ -1,0 +1,29 @@
+---
+# General Settings 
+app_dir: /opt/logging-pipeline
+repo_url: https://github.com/miaad-akbari/logging-pipeline.git
+
+# Docker Network Settings 
+network_subnet: 172.20.0.0/16
+network_gateway: 172.20.0.1
+
+# Service IPs
+zookeeper_ip: 172.20.0.10
+kafka_ip: 172.20.0.11
+kafdrop_ip: 172.20.0.12
+mysql_ip: 172.20.0.13
+postgres_ip: 172.20.0.14
+rsyslog_ip: 172.20.0.15
+consumer_ip: 172.20.0.16
+
+# Image Versions
+zookeeper_image: confluentinc/cp-zookeeper:7.5.3
+kafka_image: confluentinc/cp-kafka:7.5.3
+kafdrop_image: obsidiandynamics/kafdrop:4.0.1
+mysql_image: mysql:8.0
+postgres_image: postgres:14
+
+#  Postgresql
+postgres_user: user
+postgres_password: password
+postgres_db: mysqllogs
