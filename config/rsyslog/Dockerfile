@@ -1,9 +1,8 @@
-FROM rsyslog/rsyslog_base_ubuntu:latest
+FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y \
-    rsyslog-kafka \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY rsyslog.conf /etc/rsyslog.d/
-
-CMD ["rsyslogd", "-n"]
+RUN apt-get update && \
+    apt-get install -y rsyslog rsyslog-kafka && \
+    rm -rf /var/lib/apt/lists/*
+COPY 01-kafka.conf /etc/rsyslog.d/
+ 
+CMD ["rsyslogd", "-n", "-f", "/etc/rsyslog.conf"]
