@@ -1,10 +1,17 @@
+# deploy.yml
 ---
-- name: Deploy Logging Pipeline to Production
-  hosts: logging_servers
+- name: Deploy Logging Pipeline
+  hosts: all
   become: yes
-  gather_facts: no
+  gather_facts: yes  
+  vars_files:
+    - group_vars/all.yml
 
-  roles:
-    - common
-    - docker
-    - deploy_pipeline
+  tasks:
+    - name: Include docker setup role
+      include_role:
+        name: docker
+
+    - name: Include pipeline deployment role
+      include_role:
+        name: deploy_pipeline

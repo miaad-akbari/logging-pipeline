@@ -1,29 +1,45 @@
----
-# General Settings 
+# group_vars/all.yml
 app_dir: /opt/logging-pipeline
 repo_url: https://github.com/miaad-akbari/logging-pipeline.git
+ansible_user: <USER_NAME>
 
-# Docker Network Settings 
-network_subnet: 172.20.0.0/16
-network_gateway: 172.20.0.1
+# Docker Compose Settings
+docker_compose_version: '3.8'
+docker_network: logging-net
 
-# Service IPs
-zookeeper_ip: 172.20.0.10
-kafka_ip: 172.20.0.11
-kafdrop_ip: 172.20.0.12
-mysql_ip: 172.20.0.13
-postgres_ip: 172.20.0.14
-rsyslog_ip: 172.20.0.15
-consumer_ip: 172.20.0.16
+# Network Settings
+network_subnet: "172.20.0.0/16"
+network_gateway: "172.20.0.1"
+
+# IP Addresses
+zookeeper_ip: "172.20.0.10"
+kafka_ip: "172.20.0.11"
+kafdrop_ip: "172.20.0.12"
+mysql_ip: "172.20.0.13"
+postgres_ip: "172.20.0.14"
+rsyslog_ip: "172.20.0.15"
+consumer_ip: "172.20.0.16"
+
+# Hostnames 
+zookeeper_host: "zookeeper"
+kafka_host_internal: "kafka"
+postgres_host: "postgres"
 
 # Image Versions
-zookeeper_image: confluentinc/cp-zookeeper:7.5.3
-kafka_image: confluentinc/cp-kafka:7.5.3
-kafdrop_image: obsidiandynamics/kafdrop:4.0.1
-mysql_image: mysql:8.0
-postgres_image: postgres:14
+zookeeper_image: "confluentinc/cp-zookeeper:7.3.0"
+kafka_image: "confluentinc/cp-kafka:7.3.0"
+kafdrop_image: "obsidiandynamics/kafdrop:latest"
+mysql_image: "mysql:8.0"
+postgres_image: "postgres:13"
 
-#  Postgresql
-postgres_user: user
-postgres_password: password
-postgres_db: mysqllogs
+# Database Settings
+mysql_root_password: "rootpassword"
+mysql_database: "testdb"
+postgres_db: "mysqllogs"
+postgres_user: "user"
+postgres_password: "password"
+
+# Kafka Settings
+kafka_topic: "mysql_logs"
+kafka_broker_external: "172.20.0.11:29092"
+kafka_broker_internal: "kafka:9092"

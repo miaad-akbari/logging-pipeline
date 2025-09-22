@@ -1,12 +1,14 @@
-version: '3.8'
+# templates/docker-compose.yml.j2
+version: '{{ docker_compose_version }}'
 
 networks:
-  logging-net:
+  {{ docker_network }}:
     driver: bridge
     ipam:
       config:
         - subnet: "{{ network_subnet }}"
           gateway: "{{ network_gateway }}"
+
 volumes:
   mysql-logs:
   kafka-data:
@@ -23,7 +25,7 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ zookeeper_ip }}"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
@@ -43,16 +45,16 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "{{ zookeeper_ip }}:2181"
+      KAFKA_ZOOKEEPER_CONNECT: "{{ zookeeper_host }}:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://{{ kafka_ip }}:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://{{ kafka_ip }}:29092,PLAINTEXT_HOST://{{ kafka_host_internal }}:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ kafka_ip }}"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "29092"]
@@ -69,23 +71,28 @@ services:
     depends_on:
       - kafka
     environment:
-      KAFKA_BROKERCONNECT: "{{ kafka_ip }}:29092"
+      KAFKA_BROKERCONNECT: "{{ kafka_host_internal }}:9092"
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ kafdrop_ip }}"
 
   mysql:
     image: "{{ mysql_image }}"
     container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: testdb
+      MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+      MYSQL_DATABASE: "{{ mysql_database }}"
     command: --general-log=1 --general-log-file=/var/log/mysql/mysql-query.log
     volumes:
       - mysql-logs:/var/log/mysql
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ mysql_ip }}"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p{{ mysql_root_password }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   postgres:
     image: "{{ postgres_image }}"
@@ -99,7 +106,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ postgres_ip }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U {{ postgres_user }} -d {{ postgres_db }}"]
@@ -112,14 +119,16 @@ services:
       context: "{{ app_dir }}/config/rsyslog"
     container_name: rsyslog
     depends_on:
-      - mysql
-      - kafka
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     volumes:
-      - "{{ app_dir }}/config/rsyslog:/etc/rsyslog.d"
       - mysql-logs:/var/log/mysql:ro
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ rsyslog_ip }}"
+    restart: unless-stopped
 
   consumer:
     build:
@@ -131,13 +140,13 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      logging-net:
+      {{ docker_network }}:
         ipv4_address: "{{ consumer_ip }}"
     environment:
-      KAFKA_TOPIC: mysql_logs
-      KAFKA_BROKER: "{{ kafka_ip }}:29092"
+      KAFKA_TOPIC: "{{ kafka_topic }}"
+      KAFKA_BROKER: "{{ kafka_host_internal }}:9092"
       POSTGRES_DB: "{{ postgres_db }}"
       POSTGRES_USER: "{{ postgres_user }}"
       POSTGRES_PASSWORD: "{{ postgres_password }}"
-      POSTGRES_HOST: "{{ postgres_ip }}"
+      POSTGRES_HOST: "{{ postgres_host }}"
     restart: unless-stopped

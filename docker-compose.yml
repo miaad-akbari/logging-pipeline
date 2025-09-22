@@ -134,7 +134,7 @@ services:
         ipv4_address: 172.20.0.16
     environment:
       KAFKA_TOPIC: mysql_logs
-      KAFKA_BROKER: 172.20.0.11:29092  
+      KAFKA_BROKER: kafka:9092 
       POSTGRES_DB: mysqllogs
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
