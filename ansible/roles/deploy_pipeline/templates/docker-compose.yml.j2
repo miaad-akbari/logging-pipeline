@@ -88,6 +88,7 @@ services:
     networks:
       {{ docker_network }}:
         ipv4_address: "{{ mysql_ip }}"
+    user: 1000:1000
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p{{ mysql_root_password }}"]
       interval: 10s

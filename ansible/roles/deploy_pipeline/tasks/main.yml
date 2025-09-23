@@ -17,43 +17,60 @@
     dest: "{{ app_dir }}/docker-compose.yml"
     mode: '0644'
 
-- name: Build and start all services with Docker Compose
-  community.docker.docker_compose_v2:
-    project_src: "{{ app_dir }}"
-    build: "always"    
-    pull: "always"
-    state: present
-  become: yes
-  become_user: "{{ ansible_user }}"
+- name: Stop any existing services
+  shell: |
+    cd {{ app_dir }} && docker-compose down
+  ignore_errors: yes
+  changed_when: false
+
+- name: Pull latest images first
+  shell: |
+    cd {{ app_dir }} && docker-compose pull
+  register: pull_result
+  changed_when: pull_result.rc == 0
+
+- name: Start services without build
+  shell: |
+    cd {{ app_dir }} && docker-compose up -d --build
+  async: 600  # 10 minutes timeout
+  poll: 0  # Don't wait for completion
+  register: compose_up
+
+- name: Wait for services to start (with timeout)
+  async_status:
+    jid: "{{ compose_up.ansible_job_id }}"
   register: compose_result
+  until: compose_result.finished
+  retries: 60
+  delay: 10  # Total 10 minutes wait
 
-- name: Show Docker Compose output
+- name: Check if services started successfully
+  shell: |
+    cd {{ app_dir }} && docker-compose ps --services | wc -l
+  register: service_count
+  changed_when: false
+
+- name: Show service count
   debug:
-    var: compose_result
-
-- name: Wait for services to become healthy
-  pause:
-    seconds: 45
-  when: compose_result.changed
+    msg: "Number of services: {{ service_count.stdout }}"
 
 - name: Check running containers
-  command: docker ps -a
-  args:
-    chdir: "{{ app_dir }}"
+  shell: |
+    cd {{ app_dir }} && docker-compose ps
   register: container_status
   changed_when: false
 
 - name: Show container status
   debug:
-    msg: "{{ container_status.stdout_lines }}"
+    msg: "{{ container_status.stdout }}"
 
-- name: Check container logs
-  command: docker compose logs --tail=50
-  args:
-    chdir: "{{ app_dir }}"
-  register: container_logs
+- name: Check service health
+  shell: |
+    cd {{ app_dir }} && timeout 30 docker-compose logs --tail=10
+  register: service_logs
   changed_when: false
+  ignore_errors: yes
 
-- name: Display recent logs
+- name: Display service logs
   debug:
-    msg: "{{ container_logs.stdout_lines }}"
+    msg: "{{ service_logs.stdout_lines }}"
