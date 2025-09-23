@@ -37,6 +37,7 @@ You can run this project either manually using Docker Compose or automatically w
     ```bash
     git clone [https://github.com/miaad-akbari/logging-pipeline.git](https://github.com/miaad-akbari/logging-pipeline.git)
     cd logging-pipeline
+    edit file ansible/inventories/servers/hosts && ansible/group_vars/all.yml > replace username 
     ```
 
 2.  **Build and start all services:**
